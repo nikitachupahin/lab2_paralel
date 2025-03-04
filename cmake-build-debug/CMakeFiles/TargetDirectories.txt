@@ -1,0 +1,3 @@
+/Users/nikitachupahin/CLionProjects/lab2_paralel/cmake-build-debug/CMakeFiles/lab2_paralel.dir
+/Users/nikitachupahin/CLionProjects/lab2_paralel/cmake-build-debug/CMakeFiles/edit_cache.dir
+/Users/nikitachupahin/CLionProjects/lab2_paralel/cmake-build-debug/CMakeFiles/rebuild_cache.dir
