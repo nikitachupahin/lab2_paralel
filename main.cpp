@@ -3,13 +3,11 @@
 #include <cstdlib>
 #include <ctime>
 #include <chrono>
-#include <mutex>
 #include <thread>
 #include <vector>
+#include <atomic>
 
 using namespace std;
-
-mutex mtx;
 
 void fillArray(int* arr, long long size, int min_val = 1, int max_val = 1000000) {
     for (long long i = 0; i < size; ++i) {
@@ -17,33 +15,44 @@ void fillArray(int* arr, long long size, int min_val = 1, int max_val = 1000000)
     }
 }
 
-void findMinMaxThread(const int* arr, long long start, long long end, int &min_num, int &max_num) {
+void findMinMaxThread(const int* arr, long long start, long long end, atomic<int>& amin_num, atomic<int>& amax_num) {
     for (long long i = start; i < end; ++i) {
-        mtx.lock();
+        int expected, desired;
 
-        if (arr[i] < min_num) {
-            min_num = arr[i];
-        }
-        if (arr[i] > max_num) {
-            max_num = arr[i];
+        if (amin_num.load() > arr[i]) {
+            do {
+                expected = amin_num.load();
+                desired = arr[i];
+                if (desired > expected) {
+                    break;
+                }
+            } while (!amin_num.compare_exchange_weak(expected, desired));
         }
 
-        mtx.unlock();
+        if (amax_num.load() < arr[i]) {
+            do {
+                expected = amax_num.load();
+                desired = arr[i];
+                if (desired < expected) {
+                    break;
+                }
+            } while (!amax_num.compare_exchange_weak(expected, desired));
+        }
     }
 }
 
-void findMinMaxParallel(const int* arr, long long size, int &min_num, int &max_num) {
-    min_num = numeric_limits<int>::max();
-    max_num = numeric_limits<int>::min();
+void findMinMaxParallel(const int* arr, long long size, atomic<int>& amin_num, atomic<int>& amax_num) {
+    amin_num = numeric_limits<int>::max();
+    amax_num = numeric_limits<int>::min();
 
-    int num_threads = 4;
+    int num_threads = 8;
     vector<thread> threads;
     long long segment_size = size / num_threads;
 
     for (int i = 0; i < num_threads; ++i) {
         long long start = i * segment_size;
         long long end = (i == num_threads - 1) ? size : (i + 1) * segment_size;
-        threads.emplace_back(findMinMaxThread, arr, start, end, ref(min_num), ref(max_num));
+        threads.emplace_back(findMinMaxThread, arr, start, end, ref(amin_num), ref(amax_num));
     }
 
     for (auto &t : threads) {
@@ -59,25 +68,23 @@ int main() {
     cin >> SIZE;
 
     int* task_array = new int[SIZE];
-
     fillArray(task_array, SIZE);
 
     auto start = chrono::high_resolution_clock::now();
 
-    int min_num, max_num;
-    findMinMaxParallel(task_array, SIZE, min_num, max_num);
+    atomic<int> amin_num, amax_num;
+    findMinMaxParallel(task_array, SIZE, amin_num, amax_num);
 
-    int sum = min_num + max_num;
+    int sum = amin_num + amax_num;
 
     auto end = chrono::high_resolution_clock::now();
     auto duration = chrono::duration_cast<chrono::milliseconds>(end - start);
 
-    cout << "Мінімальний елемент: " << min_num << endl;
-    cout << "Максимальний елемент: " << max_num << endl;
+    cout << "Мінімальний елемент: " << amin_num << endl;
+    cout << "Максимальний елемент: " << amax_num << endl;
     cout << "Сума мінімального та максимального елементів: " << sum << endl;
     cout << "Час виконання: " << duration.count() << " мс" << endl;
 
     delete[] task_array;
-
     return 0;
 }
